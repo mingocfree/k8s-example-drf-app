@@ -1,37 +1,33 @@
-FROM python:3.10
-ENV PYTHONUNBUFFERED 1
+# ─── Builder Stage ─────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
 
-ARG ENV
-ARG SECRET_KEY
-ARG DB_NAME
-ARG DB_USERNAME
-ARG DB_PASSWORD
-ARG DB_HOST
-ARG CORS_ALLOWED_ORIGINS
-ARG HOST
+# Install uv into /uv /uvx /bin
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Allows docker to cache installed dependencies between builds
-COPY ./requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+WORKDIR /app
 
-# Adds our application code to the image
-COPY . code
-WORKDIR code
+COPY . /app
 
-EXPOSE 80
+# Install dependencies into a venv under /app/.venv
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-editable
 
-ENV DJANGO_SETTINGS_MODULE "project_name.settings.production"
+# Copy the rest of your source
+# ─── Final Stage ───────────────────────────────────────────────────────────────
+FROM python:3.12-slim
 
-ENV ENV ${ENV}
-ENV SECRET_KEY ${SECRET_KEY}
-ENV DB_NAME ${DB_NAME}
-ENV DB_USERNAME ${DB_USERNAME}
-ENV DB_PASSWORD ${DB_PASSWORD}
-ENV DB_HOST ${DB_HOST}
-ENV CORS_ALLOWED_ORIGINS ${CORS_ALLOWED_ORIGINS}
-ENV HOST ${HOST}
+# Make sure we use the venv’s python & scripts
+ENV PATH="/app/.venv/bin:$PATH"
 
-RUN ["chmod", "+x", "./docker-entrypoint.sh"]
+WORKDIR /app
 
-# Run the production server
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Copy venv + your source + entrypoint into the final image
+COPY --from=builder /app/.venv/lib/python3.12/site-packages/ /usr/local/lib/python3.12/site-packages/
+COPY --from=builder /app/ /app/
+# Ensure your entrypoint is executable
+RUN chmod +x ./docker-entrypoint.sh
+
+# Use the entrypoint to start both Daphne and Celery
+ENTRYPOINT ["sh","./docker-entrypoint.sh"]

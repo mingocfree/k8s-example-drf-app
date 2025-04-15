@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "Apply database migrations"
-python manage.py migrate
+echo "Starting collectstatic"
+python3 manage.py collectstatic --noinput
 
-echo "Starting server"
-gunicorn --bind 0.0.0.0:80 --access-logfile - project_name.wsgi
+echo "Starting server & celery server"
+daphne -b 0.0.0.0 -p 80 apps.asgi:application -v 0
