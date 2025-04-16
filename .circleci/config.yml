@@ -1,19 +1,23 @@
 version: 2.1
-
 jobs:
-  say-hello:
+  build-docker:
     docker:
-      - image: cimg/base:current
+      - image: cimg/base:stable # Define image directly here
+    environment:
+      IMAGE_NAME: myapp
     steps:
       - checkout
+      - setup_remote_docker
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
-
+          name: Build Docker image
+          command: docker build -t $IMAGE_NAME:latest .
+      - run:
+          name: List Docker images
+          command: docker image ls
 workflows:
-  say-hello-workflow:
+  build-and-push:
     jobs:
-      - say-hello:
+      - build-docker:
           filters:
             branches:
               only: main
