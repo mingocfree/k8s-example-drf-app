@@ -1,23 +1,47 @@
 version: 2.1
 jobs:
-  build-docker:
+  build-and-push-dockerhub:
     docker:
-      - image: cimg/base:stable # Define image directly here
-    environment:
-      IMAGE_NAME: myapp
+      - image: cimg/base:stable
     steps:
       - checkout
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: true
+      # - run:
+      #     name: Login to Docker Hub
+      #     command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
       - run:
-          name: Build Docker image
-          command: docker build -t $IMAGE_NAME:latest .
+          name: Build and tag image
+          command: |
+            docker build -t myapp:${CIRCLE_SHA1} .
+            # docker tag myapp:latest $DOCKER_REPO:${CIRCLE_SHA1}
+          # - run:
+          #     name: Push images
+          #     command: |
+          #       docker push $DOCKER_REPO:latest
+          #       docker push $DOCKER_REPO:${CIRCLE_SHA1}
+  ruff-check:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
       - run:
-          name: List Docker images
-          command: docker image ls
+          name: Install Ruff
+          command: pip install ruff
+      - run:
+          name: Run Ruff
+          command: ruff check .
 workflows:
+  pr-ruff-check:
+    when: pipeline.event.name == "pull_request" and pipeline.event.action == "opened"
+    jobs:
+      - ruff-check:
+          filters:
+            branches:
+              only: main
   build-and-push:
     jobs:
-      - build-docker:
+      - build-and-push-dockerhub:
           filters:
             branches:
               only: main
