@@ -18,7 +18,7 @@ jobs:
 
             # Fetch tags using the token
             TAGS=$(curl -s -H "Authorization: JWT $TOKEN" \
-              "https://hub.docker.com/v2/namespaces/${DOCKER_USERNAME}/repositories/${DOCKER_REPO}/tags/?page_size=100" | jq -r '.results[].name')
+              "https://hub.docker.com/v2/repositories/$DOCKER_REPO/tags/?page_size=100" | jq -r '.results[].name')
 
             echo "Existing tags: $TAGS"
 
