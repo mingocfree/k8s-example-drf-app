@@ -35,10 +35,10 @@ workflows:
   pr-ruff-check:
     when: pipeline.event.name == "pull_request" and pipeline.event.action == "opened"
     jobs:
-      - ruff-check:
-          filters:
-            branches:
-              only: main
+      - ruff-check
+          # filters:
+          #   branches:
+          #     only: main
   build-and-push:
     jobs:
       - build-and-push-dockerhub:
