@@ -1,0 +1,27 @@
+name: Deploy New Tag
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+jobs:
+  deploy-and-tag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required for pushing tags
+    steps:
+      # Checkout the repository at the merge commit
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0 # Fetch all history for version calculation
+      # Bump version and create tag
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+          RELEASE_BRANCHES: main
