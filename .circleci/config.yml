@@ -6,18 +6,57 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
+          version: 20.10.14
           docker_layer_caching: true
       - run:
+          name: Get Latest Tag and Calculate Next Version
+          command: |
+            set -e
+            # Get JWT token from Docker Hub
+            TOKEN=$(curl -s -H "Content-Type: application/json" \
+              -X POST -d "{\"username\": \"${DOCKER_USERNAME}\", \"password\": \"${DOCKER_PASSWORD}\"}" \
+              https://hub.docker.com/v2/users/login/ | jq -r .token)
+
+            # Fetch tags using the token
+            TAGS=$(curl -s -H "Authorization: JWT $TOKEN" \
+              "https://hub.docker.com/v2/namespaces/${DOCKER_USERNAME}/repositories/${DOCKER_REPO}/tags/?page_size=100" | jq -r '.results[].name')
+
+            echo "Existing tags: $TAGS"
+
+            # Extract latest semantic version tag
+            LATEST_VERSION=$(echo "$TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+            echo "Latest version: $LATEST_VERSION"
+
+            if [ -z "$LATEST_VERSION" ]; then
+              NEW_VERSION="v0.0.1"
+            else
+              # Remove 'v' prefix and split version into components
+              VERSION=${LATEST_VERSION#v}
+              MAJOR=$(echo "$VERSION" | cut -d. -f1)
+              MINOR=$(echo "$VERSION" | cut -d. -f2)
+              PATCH=$(echo "$VERSION" | cut -d. -f3)
+              # Increment patch version
+              PATCH=$((PATCH + 1))
+              NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+            fi
+
+            echo "New version: $NEW_VERSION"
+            echo "NEW_VERSION=$NEW_VERSION" >> $BASH_ENV
+      - run:
           name: Login to Docker Hub
-          command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          command: echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
       - run:
           name: Build and tag image
           command: |
-            docker build -t $DOCKER_REPO:${CIRCLE_SHA1} .
+            source $BASH_ENV
+            docker build -t "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}" .
+            docker tag "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}" "${DOCKER_USERNAME}/${DOCKER_REPO}:latest"
       - run:
           name: Push images
           command: |
-            docker push $DOCKER_REPO -a
+            source $BASH_ENV
+            docker push "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}"
+            docker push "${DOCKER_USERNAME}/${DOCKER_REPO}:latest"
   ruff-check:
     docker:
       - image: cimg/python:3.12
@@ -25,15 +64,17 @@ jobs:
       - checkout
       - run:
           name: Install Ruff
-          command: pip install ruff
+          command: pip install --user ruff
       - run:
           name: Run Ruff
-          command: ruff check .
+          command: python -m ruff check .
 workflows:
   ci:
-    when: pipeline.event.name == "pull_request" and pipeline.event.action == "opened"
     jobs:
-      - ruff-check
+      - ruff-check:
+          filters:
+            branches:
+              only: /.*/
   cd:
     jobs:
       - build-and-push-dockerhub:
