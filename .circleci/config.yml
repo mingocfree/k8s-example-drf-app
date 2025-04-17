@@ -7,19 +7,17 @@ jobs:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: true
-      # - run:
-      #     name: Login to Docker Hub
-      #     command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - run:
+          name: Login to Docker Hub
+          command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
       - run:
           name: Build and tag image
           command: |
-            docker build -t myapp:${CIRCLE_SHA1} .
-            # docker tag myapp:latest $DOCKER_REPO:${CIRCLE_SHA1}
-          # - run:
-          #     name: Push images
-          #     command: |
-          #       docker push $DOCKER_REPO:latest
-          #       docker push $DOCKER_REPO:${CIRCLE_SHA1}
+            docker build -t $DOCKER_REPO:${CIRCLE_SHA1} .
+      - run:
+          name: Push images
+          command: |
+            docker push $DOCKER_REPO -a
   ruff-check:
     docker:
       - image: cimg/python:3.12
@@ -32,14 +30,11 @@ jobs:
           name: Run Ruff
           command: ruff check .
 workflows:
-  pr-ruff-check:
+  ci:
     when: pipeline.event.name == "pull_request" and pipeline.event.action == "opened"
     jobs:
       - ruff-check
-          # filters:
-          #   branches:
-          #     only: main
-  build-and-push:
+  cd:
     jobs:
       - build-and-push-dockerhub:
           filters:
