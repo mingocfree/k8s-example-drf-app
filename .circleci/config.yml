@@ -48,14 +48,12 @@ jobs:
           name: Build and tag image
           command: |
             source $BASH_ENV
-            docker build -t "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}" .
-            docker tag "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}" "${DOCKER_USERNAME}/${DOCKER_REPO}:latest"
+            docker build -t "${DOCKER_REPO}:${NEW_VERSION}" .
       - run:
           name: Push images
           command: |
             source $BASH_ENV
-            docker push "${DOCKER_USERNAME}/${DOCKER_REPO}:${NEW_VERSION}"
-            docker push "${DOCKER_USERNAME}/${DOCKER_REPO}:latest"
+            docker push "${DOCKER_REPO}:${NEW_VERSION}"
   ruff-check:
     docker:
       - image: cimg/python:3.12
@@ -69,11 +67,9 @@ jobs:
           command: python -m ruff check .
 workflows:
   ci:
+    when: pipeline.event.name == "pull_request" and pipeline.event.action == "opened"
     jobs:
-      - ruff-check:
-          filters:
-            branches:
-              only: /.*/
+      - ruff-check
   cd:
     jobs:
       - build-and-push-dockerhub:
